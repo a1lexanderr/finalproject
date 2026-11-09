@@ -177,7 +177,7 @@ def run_cli():
     print("Добро пожаловать в ValutaTrade Hub!")
     print("Введите 'help' для списка команд или 'exit' для выхода.")
     print("=" * 50)
-
+    
     commands = {
         "register": handle_register,
         "login": handle_login,
@@ -195,12 +195,12 @@ def run_cli():
             command_line = input("\n> ").strip()
             if not command_line:
                 continue
-
-            if command_line.lower() in ("exit", "quit"):
+                
+            if command_line.lower() in ('exit', 'quit'):
                 print("До свидания!")
                 break
-
-            if command_line.lower() == "help":
+            
+            if command_line.lower() == 'help':
                 print("Доступные команды:")
                 print("  register --username <str> --password <str>")
                 print("  login --username <str> --password <str>")
@@ -208,18 +208,21 @@ def run_cli():
                 print("  buy --currency <str> --amount <float>")
                 print("  sell --currency <str> --amount <float>")
                 print("  get-rate --from <str> --to <str>")
-                print("  add-fiat --amount <float> (тестовая команда пополнения USD)")
+                print("  update-rates [--source <coingecko|exchangerate>]")
+                print("  show-rates [--currency <str>] [--top <int>]")
+                print("  add-fiat --amount <float> (пополнение баланса USD)")
+                print("  exit / quit — выход из приложения")
                 continue
 
             tokens = shlex.split(command_line)
-
             command = tokens[0].lower()
+            
             if command in commands:
                 parsed_args = parse_args(tokens[1:])
                 commands[command](parsed_args)
             else:
                 print(f"Неизвестная команда: '{command}'. Введите 'help'.")
-
+                
         except KeyboardInterrupt:
             print("\nВыход...")
             break
