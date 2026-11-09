@@ -1,8 +1,7 @@
 from functools import wraps
 
 from valutatrade_hub.logging_config import setup_logging
-
-# Убрали глобальный импорт current_session отсюда!
+from valutatrade_hub.core.exceptions import InsufficientFundsError, CurrencyNotFoundError, ApiRequestError
 
 logger = setup_logging()
 
@@ -36,3 +35,43 @@ def log_action(action_name: str, verbose: bool = False):
         return wrapper
 
     return decorator
+
+def handle_errors(func):
+    """Декоратор для перехвата исключений бизнес-логики и красивого вывода в консоль."""
+
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except InsufficientFundsError as e:
+            print(f"{e}")
+        except CurrencyNotFoundError as e:
+            print(f"{e}")
+            print(
+                "Подсказка: используйте поддерживаемые коды (USD, EUR, RUB, BTC, ETH) или введите 'help'."
+            )
+        except ApiRequestError as e:
+            print(f"{e}")
+            print("Попробуйте повторить запрос позже или проверьте соединение с сетью.")
+        except (ValueError, KeyError, PermissionError, TypeError) as e:
+            print(f"Ошибка: {e}")
+        except Exception as e:
+            print(f"Неизвестная системная ошибка: {e}")
+
+    return wrapper
+
+
+def confirm_action(func):
+    """Декоратор для подтверждения критических действий (покупка/продажа)."""
+
+    def wrapper(*args, **kwargs):
+        ans = (
+            input("Вы уверены, что хотите выполнить эту операцию? (y/n): ")
+            .strip()
+            .lower()
+        )
+        if ans in ("y", "yes", "да"):
+            return func(*args, **kwargs)
+        else:
+            print("Операция отменена.")
+
+    return wrapper
