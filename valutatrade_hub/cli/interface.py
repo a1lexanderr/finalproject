@@ -131,6 +131,54 @@ def handle_add_fiat(parsed_args: dict):
     new_balance = usecases.add_fiat_usd(amount)
     print(f"Баланс пополнен. Текущий баланс USD: {new_balance:.2f}")
 
+@handle_errors
+def handle_update_rates(parsed_args: dict):
+    from valutatrade_hub.parser_service.updater import RatesUpdater
+    source = parsed_args.get("source")
+    updater = RatesUpdater()
+    try:
+        count, timestamp = updater.run_update(source)
+        print(f"✅ Успешно обновлено {count} курсов. Последнее обновление: {timestamp}")
+    except Exception as e:
+        print(f"⚠️ {e}")
+        
+@handle_errors
+def handle_show_rates(parsed_args: dict):
+    from valutatrade_hub.core.utils import load_json
+    from valutatrade_hub.parser_service.config import ParserConfig
+    
+    config = ParserConfig()
+    data = load_json(config.RATES_FILE_PATH, {"pairs": {}, "last_refresh": None})
+    pairs = data.get("pairs", {})
+    
+    if not pairs:
+        print("❌ Локальный кеш курсов пуст. Выполните 'update-rates', чтобы загрузить данные.")
+        return
+        
+    target_currency = parsed_args.get("currency", "").upper()
+    top_n = int(parsed_args.get("top", 0))
+    
+    rates_list = []
+    for pair, info in pairs.items():
+        if target_currency and target_currency not in pair:
+            continue
+        rates_list.append({
+            "pair": pair,
+            "rate": info["rate"],
+            "updated_at": info["updated_at"]
+        })
+        
+    if target_currency and not rates_list:
+        print(f"❌ Курс для '{target_currency}' не найден в кеше.")
+        return
+        
+    if top_n > 0:
+        rates_list.sort(key=lambda x: x["rate"], reverse=True)
+        rates_list = rates_list[:top_n]
+        
+    print(f"\n📊 Rates from cache (updated at {data.get('last_refresh')}):")
+    for r in rates_list:
+        print(f"- {r['pair']}: {r['rate']:.8f}")
 
 def run_cli():
     print("=" * 50)
@@ -145,6 +193,8 @@ def run_cli():
         "buy": handle_buy,
         "sell": handle_sell,
         "get-rate": handle_get_rate,
+        "update-rates": handle_update_rates,
+        "show-rates": handle_show_rates,
         "add-fiat": handle_add_fiat
     }
 

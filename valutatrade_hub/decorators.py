@@ -1,7 +1,7 @@
 from functools import wraps
 from datetime import datetime
 from valutatrade_hub.logging_config import setup_logging
-from valutatrade_hub.core.usecases import current_session
+# Убрали глобальный импорт current_session отсюда!
 
 logger = setup_logging()
 
@@ -9,7 +9,8 @@ def log_action(action_name: str, verbose: bool = False):
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
-            timestamp = datetime.now().isoformat()
+            from valutatrade_hub.core.usecases import current_session
+            
             user_id = current_session.get("user_id", "UNKNOWN")
             
             try:

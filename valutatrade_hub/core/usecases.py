@@ -89,32 +89,26 @@ def login_user(username: str, password: str) -> User:
 
 
 def get_all_rates() -> dict:
-    rates = load_json(RATES_FILE, {})
+    rates_data = load_json(RATES_FILE, {"pairs": {}, "last_refresh": None})
     now = datetime.now()
     ttl = settings.get("RATES_TTL_SECONDS", 300)
 
     need_update = True
-    if "last_refresh" in rates:
-        last_refresh = datetime.fromisoformat(rates["last_refresh"])
+    if rates_data.get("last_refresh"):
+        last_refresh = datetime.fromisoformat(rates_data["last_refresh"].replace('Z', ''))
         if now - last_refresh < timedelta(seconds=ttl):
             need_update = False
 
     if need_update:
         try:
-            now_str = now.isoformat()
-            rates = {
-                "EUR_USD": {"rate": round(random.uniform(1.05, 1.15), 4), "updated_at": now_str},
-                "BTC_USD": {"rate": round(random.uniform(58000, 62000), 2), "updated_at": now_str},
-                "ETH_USD": {"rate": round(random.uniform(2800, 3200), 2), "updated_at": now_str},
-                "RUB_USD": {"rate": round(random.uniform(0.010, 0.012), 5), "updated_at": now_str},
-                "source": "ParserServiceMock",
-                "last_refresh": now_str
-            }
-            save_json(RATES_FILE, rates)
+            from valutatrade_hub.parser_service.updater import RatesUpdater
+            updater = RatesUpdater()
+            updater.run_update()
+            rates_data = load_json(RATES_FILE, {"pairs": {}, "last_refresh": None})
         except Exception as e:
             raise ApiRequestError(str(e))
 
-    return rates
+    return rates_data.get("pairs", {})
 
 def get_exchange_rate(from_currency: str, to_currency: str) -> tuple[float, str]:
     from_curr = get_currency(from_currency)
@@ -123,16 +117,17 @@ def get_exchange_rate(from_currency: str, to_currency: str) -> tuple[float, str]
     if from_curr.code == to_curr.code:
         return 1.0, datetime.now().isoformat()
 
-    rates = get_all_rates()
+    pairs = get_all_rates()
+    
     pair = f"{from_curr.code}_{to_curr.code}"
-    if pair in rates:
-        return rates[pair]["rate"], rates[pair]["updated_at"]
+    if pair in pairs:
+        return pairs[pair]["rate"], pairs[pair]["updated_at"]
         
     reverse_pair = f"{to_curr.code}_{from_curr.code}"
-    if reverse_pair in rates:
-        return 1.0 / rates[reverse_pair]["rate"], rates[reverse_pair]["updated_at"]
+    if reverse_pair in pairs:
+        return 1.0 / pairs[reverse_pair]["rate"], pairs[reverse_pair]["updated_at"]
 
-    raise ApiRequestError(f"Курс {from_curr.code}→{to_curr.code} недоступен в источнике данных.")
+    raise ApiRequestError(f"Курс {from_curr.code}→{to_curr.code} недоступен в кеше.")
 
 
 def _get_user_portfolio_model() -> Portfolio:
