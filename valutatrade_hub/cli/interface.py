@@ -3,7 +3,7 @@ import shlex
 from prettytable import PrettyTable
 
 from valutatrade_hub.core import usecases
-from valutatrade_hub.decorators import handle_errors, confirm_action
+from valutatrade_hub.decorators import confirm_action, handle_errors
 
 
 def parse_args(tokens: list[str]) -> dict:

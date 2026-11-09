@@ -7,7 +7,7 @@ from valutatrade_hub.infra.settings import SettingsLoader
 
 from .currencies import get_currency
 from .exceptions import ApiRequestError
-from .models import User, Portfolio, MIN_PASSWORD_LENGTH
+from .models import MIN_PASSWORD_LENGTH, Portfolio, User
 from .utils import PORTFOLIOS_FILE, RATES_FILE, USERS_FILE, load_json, save_json
 
 current_session = {"user_id": None}
