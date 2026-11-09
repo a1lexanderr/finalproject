@@ -141,10 +141,6 @@ def get_exchange_rate(from_currency: str, to_currency: str) -> tuple[float, str]
 
     raise ValueError(f"Курс {from_currency}→{to_currency} недоступен.")
 
-# ==========================================
-# Внутренние функции работы с портфелем
-# ==========================================
-
 def _get_user_portfolio_model() -> Portfolio:
     """Загружает портфель текущего пользователя и возвращает объект Portfolio."""
     require_login()
