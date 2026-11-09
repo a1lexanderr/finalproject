@@ -7,7 +7,7 @@ from valutatrade_hub.infra.settings import SettingsLoader
 
 from .currencies import get_currency
 from .exceptions import ApiRequestError
-from .models import Portfolio, User
+from .models import User, Portfolio, MIN_PASSWORD_LENGTH
 from .utils import PORTFOLIOS_FILE, RATES_FILE, USERS_FILE, load_json, save_json
 
 current_session = {"user_id": None}
@@ -26,7 +26,7 @@ def require_login():
 
 @log_action("REGISTER")
 def register_user(username: str, password: str) -> User:
-    if len(password) < 4:
+    if len(password) < MIN_PASSWORD_LENGTH:
         raise ValueError("Пароль должен быть не короче 4 символов.")
     if not username.strip():
         raise ValueError("Имя пользователя не может быть пустым.")

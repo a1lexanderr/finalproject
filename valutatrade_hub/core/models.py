@@ -4,6 +4,7 @@ from typing import Dict
 
 from .exceptions import InsufficientFundsError
 
+MIN_PASSWORD_LENGTH = 4
 
 class User:
     def __init__(
@@ -55,7 +56,7 @@ class User:
         return f"ID: {self._user_id} | Username: {self._username} | Зарегистрирован: {date_str}"
 
     def change_password(self, new_password: str):
-        if len(new_password) < 4:
+        if len(new_password) < MIN_PASSWORD_LENGTH:
             raise ValueError("Пароль должен быть не короче 4 символов.")
         self._hashed_password = self._generate_hash(new_password, self._salt)
 

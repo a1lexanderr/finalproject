@@ -2,11 +2,13 @@ from abc import ABC, abstractmethod
 
 from .exceptions import CurrencyNotFoundError
 
+MIN_CURRENCY_CODE_LEN = 2
+MAX_CURRENCY_CODE_LEN = 5
 
 class Currency(ABC):
     def __init__(self, code: str, name: str):
-        if not (2 <= len(code) <= 5) or not code.isalpha():
-            raise ValueError(f"Код валюты должен содержать от 2 до 5 букв: {code}")
+        if not (MIN_CURRENCY_CODE_LEN <= len(code) <= MAX_CURRENCY_CODE_LEN) or not code.isalpha():
+            raise ValueError(f"Код валюты должен содержать от {MIN_CURRENCY_CODE_LEN} до {MAX_CURRENCY_CODE_LEN} букв: {code}")
         self.code = code.upper()
         self.name = name
 

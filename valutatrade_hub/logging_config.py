@@ -4,6 +4,8 @@ from logging.handlers import RotatingFileHandler
 
 from valutatrade_hub.infra.settings import SettingsLoader
 
+MAX_LOG_BYTES = 5 * 1024 * 1024
+LOG_BACKUP_COUNT = 3
 
 def setup_logging():
     settings = SettingsLoader()
@@ -16,7 +18,7 @@ def setup_logging():
 
     if not logger.handlers:
         handler = RotatingFileHandler(
-            log_file, maxBytes=5 * 1024 * 1024, backupCount=3, encoding="utf-8"
+            log_file, maxBytes=MAX_LOG_BYTES, backupCount=LOG_BACKUP_COUNT, encoding="utf-8"
         )
         formatter = logging.Formatter("%(levelname)s %(asctime)s %(message)s")
         handler.setFormatter(formatter)
