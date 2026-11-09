@@ -1,7 +1,11 @@
 from abc import ABC, abstractmethod
+
 import requests
+
 from valutatrade_hub.core.exceptions import ApiRequestError
+
 from .config import ParserConfig
+
 
 class BaseApiClient(ABC):
     def __init__(self, config: ParserConfig):
@@ -10,6 +14,7 @@ class BaseApiClient(ABC):
     @abstractmethod
     def fetch_rates(self) -> dict:
         pass
+
 
 class CoinGeckoClient(BaseApiClient):
     def fetch_rates(self) -> dict:
@@ -20,7 +25,7 @@ class CoinGeckoClient(BaseApiClient):
             response = requests.get(url, timeout=self.config.REQUEST_TIMEOUT)
             response.raise_for_status()
             data = response.json()
-            
+
             rates = {}
             id_to_code = {v: k for k, v in self.config.CRYPTO_ID_MAP.items()}
             for coin_id, values in data.items():
@@ -33,17 +38,20 @@ class CoinGeckoClient(BaseApiClient):
         except requests.RequestException as e:
             raise ApiRequestError(f"CoinGecko network error: {e}")
 
+
 class ExchangeRateApiClient(BaseApiClient):
     def fetch_rates(self) -> dict:
         if not self.config.EXCHANGERATE_API_KEY:
-            raise ApiRequestError("EXCHANGERATE_API_KEY не установлен. Фиатные курсы пропущены.")
-        
+            raise ApiRequestError(
+                "EXCHANGERATE_API_KEY не установлен. Фиатные курсы пропущены."
+            )
+
         url = f"{self.config.EXCHANGERATE_API_URL}/{self.config.EXCHANGERATE_API_KEY}/latest/{self.config.BASE_CURRENCY}"
         try:
             response = requests.get(url, timeout=self.config.REQUEST_TIMEOUT)
             response.raise_for_status()
             data = response.json()
-            
+
             rates = {}
             for currency in self.config.FIAT_CURRENCIES:
                 rate = data.get("conversion_rates", {}).get(currency)

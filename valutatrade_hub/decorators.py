@@ -1,18 +1,20 @@
 from functools import wraps
-from datetime import datetime
+
 from valutatrade_hub.logging_config import setup_logging
+
 # Убрали глобальный импорт current_session отсюда!
 
 logger = setup_logging()
+
 
 def log_action(action_name: str, verbose: bool = False):
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
             from valutatrade_hub.core.usecases import current_session
-            
+
             user_id = current_session.get("user_id", "UNKNOWN")
-            
+
             try:
                 result = func(*args, **kwargs)
                 if isinstance(result, dict):
@@ -22,11 +24,15 @@ def log_action(action_name: str, verbose: bool = False):
                     msg = f"{action_name} user_id={user_id} currency='{currency}' amount={amount} rate={rate} base='USD' result=OK"
                 else:
                     msg = f"{action_name} user_id={user_id} result=OK"
-                    
+
                 logger.info(msg)
                 return result
             except Exception as e:
-                logger.error(f"{action_name} user_id={user_id} result=ERROR error_type={type(e).__name__} error_message='{str(e)}'")
+                logger.error(
+                    f"{action_name} user_id={user_id} result=ERROR error_type={type(e).__name__} error_message='{str(e)}'"
+                )
                 raise
+
         return wrapper
+
     return decorator

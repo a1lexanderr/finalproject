@@ -1,8 +1,11 @@
 import json
 import os
 from tempfile import NamedTemporaryFile
+
 from valutatrade_hub.core.utils import load_json
+
 from .config import ParserConfig
+
 
 class StorageManager:
     def __init__(self, config: ParserConfig):
@@ -19,7 +22,7 @@ class StorageManager:
 
     def _atomic_write(self, filepath, data):
         dirpath = filepath.parent
-        with NamedTemporaryFile('w', dir=dirpath, delete=False, encoding='utf-8') as tf:
+        with NamedTemporaryFile("w", dir=dirpath, delete=False, encoding="utf-8") as tf:
             json.dump(data, tf, indent=4, ensure_ascii=False)
             tempname = tf.name
         os.replace(tempname, filepath)

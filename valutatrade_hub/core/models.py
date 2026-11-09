@@ -1,15 +1,24 @@
 import hashlib
 from datetime import datetime
 from typing import Dict
+
 from .exceptions import InsufficientFundsError
 
+
 class User:
-    def __init__(self, user_id: int, username: str, hashed_password: str, salt: str, registration_date: str = None):
+    def __init__(
+        self,
+        user_id: int,
+        username: str,
+        hashed_password: str,
+        salt: str,
+        registration_date: str = None,
+    ):
         self._user_id = user_id
-        self.username = username 
+        self.username = username
         self._hashed_password = hashed_password
         self._salt = salt
-        
+
         if registration_date:
             self._registration_date = datetime.fromisoformat(registration_date)
         else:
@@ -18,25 +27,25 @@ class User:
     @property
     def user_id(self) -> int:
         return self._user_id
-    
+
     @property
     def username(self) -> str:
         return self._username
-    
+
     @username.setter
     def username(self, value: str):
         if not value or not str(value).strip():
             raise ValueError("Имя пользователя не может быть пустым.")
         self._username = str(value).strip()
-    
+
     @property
     def hashed_password(self) -> str:
         return self._hashed_password
-    
+
     @property
     def salt(self) -> str:
         return self._salt
-    
+
     @property
     def registration_date(self) -> datetime:
         return self._registration_date
@@ -44,7 +53,7 @@ class User:
     def get_user_info(self) -> str:
         date_str = self._registration_date.strftime("%Y-%m-%d %H:%M:%S")
         return f"ID: {self._user_id} | Username: {self._username} | Зарегистрирован: {date_str}"
-    
+
     def change_password(self, new_password: str):
         if len(new_password) < 4:
             raise ValueError("Пароль должен быть не короче 4 символов.")
@@ -52,11 +61,11 @@ class User:
 
     def verify_password(self, password: str) -> bool:
         return self._hashed_password == self._generate_hash(password, self._salt)
-    
+
     @staticmethod
     def _generate_hash(password: str, salt: str) -> str:
         """Вспомогательный приватный метод для генерации хеша"""
-        return hashlib.sha256((password + salt).encode('utf-8')).hexdigest()
+        return hashlib.sha256((password + salt).encode("utf-8")).hexdigest()
 
 
 class Wallet:
@@ -78,16 +87,22 @@ class Wallet:
 
     def deposit(self, amount: float):
         if not isinstance(amount, (int, float)) or amount <= 0:
-            raise ValueError("Сумма пополнения ('amount') должна быть положительным числом.")
+            raise ValueError(
+                "Сумма пополнения ('amount') должна быть положительным числом."
+            )
         self.balance += amount
 
     def withdraw(self, amount: float):
         if not isinstance(amount, (int, float)) or amount <= 0:
-            raise ValueError("Сумма снятия ('amount') должна быть положительным числом.")
+            raise ValueError(
+                "Сумма снятия ('amount') должна быть положительным числом."
+            )
         if amount > self.balance:
-            raise InsufficientFundsError(available=self.balance, required=amount, code=self.currency_code)
+            raise InsufficientFundsError(
+                available=self.balance, required=amount, code=self.currency_code
+            )
         self.balance -= amount
-    
+
     def get_balance_info(self) -> str:
         return f"{self.currency_code}: {self.balance:.4f}"
 
@@ -96,12 +111,12 @@ class Portfolio:
     def __init__(self, user_id: int, wallets_data: dict = None):
         self._user_id = user_id
         self._wallets: Dict[str, Wallet] = {}
-        
+
         if wallets_data:
             for curr_code, w_data in wallets_data.items():
                 self._wallets[curr_code.upper()] = Wallet(
                     currency_code=w_data.get("currency_code", curr_code),
-                    balance=w_data.get("balance", 0.0)
+                    balance=w_data.get("balance", 0.0),
                 )
 
     @property
@@ -124,7 +139,9 @@ class Portfolio:
             raise KeyError(f"У вас нет кошелька '{currency_code}'.")
         return self._wallets[currency_code]
 
-    def get_total_value(self, exchange_rates: dict, base_currency: str = 'USD') -> float:
+    def get_total_value(
+        self, exchange_rates: dict, base_currency: str = "USD"
+    ) -> float:
         """
         exchange_rates - словарь с курсами, который будет передаваться из бизнес-логики (usecases.py).
         Пример: {"BTC_USD": {"rate": 59337.21}, "EUR_USD": {"rate": 1.0786}}
@@ -146,5 +163,7 @@ class Portfolio:
                         rate = 1 / exchange_rates[reverse_pair]["rate"]
                         total += wallet.balance * rate
                     else:
-                        raise ValueError(f"Не удалось получить курс для {curr}→{base_currency}")
+                        raise ValueError(
+                            f"Не удалось получить курс для {curr}→{base_currency}"
+                        )
         return total

@@ -1,5 +1,5 @@
-import os
 from pathlib import Path
+
 
 class SettingsLoader:
     _instance = None
@@ -17,7 +17,7 @@ class SettingsLoader:
             "BASE_CURRENCY": "USD",
             "DATA_DIR": str(base_dir / "data"),
             "LOG_FILE": str(base_dir / "logs" / "actions.log"),
-            "LOG_LEVEL": "INFO"
+            "LOG_LEVEL": "INFO",
         }
 
     def get(self, key: str, default=None):
