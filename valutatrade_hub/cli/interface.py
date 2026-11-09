@@ -1,17 +1,27 @@
 import shlex
 from prettytable import PrettyTable
 from valutatrade_hub.core import usecases
+from valutatrade_hub.core.exceptions import InsufficientFundsError, CurrencyNotFoundError, ApiRequestError
 
 def handle_errors(func):
     """Декоратор для перехвата исключений бизнес-логики и красивого вывода в консоль."""
     def wrapper(*args, **kwargs):
         try:
             return func(*args, **kwargs)
+        except InsufficientFundsError as e:
+            print(f"{e}")
+        except CurrencyNotFoundError as e:
+            print(f"{e}")
+            print("Подсказка: используйте поддерживаемые коды (USD, EUR, RUB, BTC, ETH) или введите 'help'.")
+        except ApiRequestError as e:
+            print(f"{e}")
+            print("Попробуйте повторить запрос позже или проверьте соединение с сетью.")
         except (ValueError, KeyError, PermissionError, TypeError) as e:
             print(f"Ошибка: {e}")
         except Exception as e:
-            print(f"Неизвестная ошибка: {e}")
+            print(f"Неизвестная системная ошибка: {e}")
     return wrapper
+
 
 def confirm_action(func):
     """Декоратор для подтверждения критических действий (покупка/продажа)."""
@@ -111,7 +121,7 @@ def handle_sell(parsed_args: dict):
 def handle_get_rate(parsed_args: dict):
     require_args(parsed_args, ["from", "to"])
     rate, updated_at = usecases.get_exchange_rate(parsed_args["from"], parsed_args["to"])
-    print(f"Курс {parsed_args['from'].upper()}→{parsed_args['to'].upper()}: {rate:.4f} (обновлено: {updated_at})")
+    print(f"Курс {parsed_args['from'].upper()}→{parsed_args['to'].upper()}: {rate:.8f} (обновлено: {updated_at})")
 
 @handle_errors
 def handle_add_fiat(parsed_args: dict):
@@ -166,10 +176,10 @@ def run_cli():
                 parsed_args = parse_args(tokens[1:])
                 commands[command](parsed_args)
             else:
-                print(f"❌ Неизвестная команда: '{command}'. Введите 'help'.")
+                print(f"Неизвестная команда: '{command}'. Введите 'help'.")
                 
         except KeyboardInterrupt:
             print("\nВыход...")
             break
         except Exception as e:
-            print(f"❌ Системная ошибка: {e}")
+            print(f"Системная ошибка: {e}")

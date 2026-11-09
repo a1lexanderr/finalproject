@@ -1,32 +1,42 @@
-import random
 import uuid
 import hashlib
+import random
 from datetime import datetime, timedelta
+
 from .utils import load_json, save_json, USERS_FILE, PORTFOLIOS_FILE, RATES_FILE
 from .models import User, Portfolio
+from .currencies import get_currency
+from .exceptions import ApiRequestError
+from valutatrade_hub.infra.settings import SettingsLoader
+from valutatrade_hub.decorators import log_action
 
 current_session = {
     "user_id": None
 }
 
+settings = SettingsLoader()
+
+def get_current_user_id():
+    return current_session["user_id"]
+
+def require_login():
+    if current_session["user_id"] is None:
+        raise PermissionError("Сначала выполните login.")
+
+
+@log_action("REGISTER")
 def register_user(username: str, password: str) -> User:
-    """
-    Регистрирует нового пользователя: проверяет уникальность, хеширует пароль,
-    сохраняет в JSON и создает пустой портфель.
-    """
     if len(password) < 4:
         raise ValueError("Пароль должен быть не короче 4 символов.")
     if not username.strip():
         raise ValueError("Имя пользователя не может быть пустым.")
 
     users_data = load_json(USERS_FILE, [])
-    
     for u in users_data:
         if u["username"] == username:
             raise ValueError(f"Имя пользователя '{username}' уже занято.")
             
     new_user_id = 1 if not users_data else max(u["user_id"] for u in users_data) + 1
-    
     salt = uuid.uuid4().hex
     hashed_password = hashlib.sha256((password + salt).encode('utf-8')).hexdigest()
     
@@ -37,14 +47,13 @@ def register_user(username: str, password: str) -> User:
         salt=salt
     )
     
-    user_dict = {
+    users_data.append({
         "user_id": new_user.user_id,
         "username": new_user.username,
         "hashed_password": new_user.hashed_password,
         "salt": new_user.salt,
         "registration_date": new_user.registration_date.isoformat()
-    }
-    users_data.append(user_dict)
+    })
     save_json(USERS_FILE, users_data)
     
     portfolios_data = load_json(PORTFOLIOS_FILE, [])
@@ -56,18 +65,10 @@ def register_user(username: str, password: str) -> User:
     
     return new_user
 
+@log_action("LOGIN")
 def login_user(username: str, password: str) -> User:
-    """
-    Ищет пользователя по имени, проверяет пароль. 
-    Если успех - сохраняет ID в текущую сессию.
-    """
     users_data = load_json(USERS_FILE, [])
-    
-    user_dict = None
-    for u in users_data:
-        if u["username"] == username:
-            user_dict = u
-            break
+    user_dict = next((u for u in users_data if u["username"] == username), None)
             
     if not user_dict:
         raise ValueError(f"Пользователь '{username}' не найден.")
@@ -84,65 +85,57 @@ def login_user(username: str, password: str) -> User:
         raise ValueError("Неверный пароль.")
         
     current_session["user_id"] = user.user_id
-    
     return user
 
-def get_current_user_id():
-    """Возвращает ID текущего пользователя или None"""
-    return current_session["user_id"]
-
-def require_login():
-    """Вспомогательная функция для проверки авторизации в других командах"""
-    if current_session["user_id"] is None:
-        raise PermissionError("Сначала выполните login.")
 
 def get_all_rates() -> dict:
-    """Получает курсы валют из кеша. Если устарели (> 5 мин) - обновляет."""
     rates = load_json(RATES_FILE, {})
     now = datetime.now()
+    ttl = settings.get("RATES_TTL_SECONDS", 300)
 
     need_update = True
     if "last_refresh" in rates:
         last_refresh = datetime.fromisoformat(rates["last_refresh"])
-        if now - last_refresh < timedelta(minutes=5):
+        if now - last_refresh < timedelta(seconds=ttl):
             need_update = False
 
     if need_update:
-        now_str = now.isoformat()
-        rates = {
-            "EUR_USD": {"rate": round(random.uniform(1.05, 1.15), 4), "updated_at": now_str},
-            "BTC_USD": {"rate": round(random.uniform(58000, 62000), 2), "updated_at": now_str},
-            "ETH_USD": {"rate": round(random.uniform(2800, 3200), 2), "updated_at": now_str},
-            "RUB_USD": {"rate": round(random.uniform(0.010, 0.012), 5), "updated_at": now_str},
-            "source": "ParserServiceMock",
-            "last_refresh": now_str
-        }
-        save_json(RATES_FILE, rates)
+        try:
+            now_str = now.isoformat()
+            rates = {
+                "EUR_USD": {"rate": round(random.uniform(1.05, 1.15), 4), "updated_at": now_str},
+                "BTC_USD": {"rate": round(random.uniform(58000, 62000), 2), "updated_at": now_str},
+                "ETH_USD": {"rate": round(random.uniform(2800, 3200), 2), "updated_at": now_str},
+                "RUB_USD": {"rate": round(random.uniform(0.010, 0.012), 5), "updated_at": now_str},
+                "source": "ParserServiceMock",
+                "last_refresh": now_str
+            }
+            save_json(RATES_FILE, rates)
+        except Exception as e:
+            raise ApiRequestError(str(e))
 
     return rates
 
 def get_exchange_rate(from_currency: str, to_currency: str) -> tuple[float, str]:
-    """Возвращает курс обмена и время его обновления."""
-    from_currency = from_currency.upper()
-    to_currency = to_currency.upper()
+    from_curr = get_currency(from_currency)
+    to_curr = get_currency(to_currency)
 
-    if from_currency == to_currency:
+    if from_curr.code == to_curr.code:
         return 1.0, datetime.now().isoformat()
 
     rates = get_all_rates()
-     
-    pair = f"{from_currency}_{to_currency}"
+    pair = f"{from_curr.code}_{to_curr.code}"
     if pair in rates:
         return rates[pair]["rate"], rates[pair]["updated_at"]
         
-    reverse_pair = f"{to_currency}_{from_currency}"
+    reverse_pair = f"{to_curr.code}_{from_curr.code}"
     if reverse_pair in rates:
         return 1.0 / rates[reverse_pair]["rate"], rates[reverse_pair]["updated_at"]
 
-    raise ValueError(f"Курс {from_currency}→{to_currency} недоступен.")
+    raise ApiRequestError(f"Курс {from_curr.code}→{to_curr.code} недоступен в источнике данных.")
+
 
 def _get_user_portfolio_model() -> Portfolio:
-    """Загружает портфель текущего пользователя и возвращает объект Portfolio."""
     require_login()
     user_id = current_session["user_id"]
     portfolios_data = load_json(PORTFOLIOS_FILE, [])
@@ -150,19 +143,11 @@ def _get_user_portfolio_model() -> Portfolio:
     for p_data in portfolios_data:
         if p_data["user_id"] == user_id:
             return Portfolio(user_id=user_id, wallets_data=p_data.get("wallets", {}))
-            
     return Portfolio(user_id=user_id)
 
 def _save_user_portfolio_model(portfolio: Portfolio):
-    """Сохраняет объект Portfolio обратно в JSON."""
     portfolios_data = load_json(PORTFOLIOS_FILE, [])
-    
-    wallets_dict = {}
-    for code, wallet in portfolio.wallets.items():
-        wallets_dict[code] = {
-            "currency_code": code,
-            "balance": wallet.balance
-        }
+    wallets_dict = {code: {"currency_code": code, "balance": wallet.balance} for code, wallet in portfolio.wallets.items()}
         
     updated = False
     for i, p_data in enumerate(portfolios_data):
@@ -172,46 +157,41 @@ def _save_user_portfolio_model(portfolio: Portfolio):
             break
             
     if not updated:
-        portfolios_data.append({
-            "user_id": portfolio.user_id,
-            "wallets": wallets_dict
-        })
+        portfolios_data.append({"user_id": portfolio.user_id, "wallets": wallets_dict})
         
     save_json(PORTFOLIOS_FILE, portfolios_data)
 
+
 def get_portfolio_info(base_currency: str = "USD") -> dict:
-    """Подготавливает данные о портфеле для команды show-portfolio."""
+    base_curr = get_currency(base_currency) # Проверка базы
     portfolio = _get_user_portfolio_model()
     rates = get_all_rates()
     
-    # Делегируем подсчет тотала модели
-    total_value = portfolio.get_total_value(rates, base_currency)
+    total_value = portfolio.get_total_value(rates, base_curr.code)
     
     wallets_info = []
     for code, wallet in portfolio.wallets.items():
-        rate, _ = get_exchange_rate(code, base_currency)
-        value_in_base = wallet.balance * rate
+        rate, _ = get_exchange_rate(code, base_curr.code)
         wallets_info.append({
             "currency": code,
             "balance": wallet.balance,
-            "value_in_base": value_in_base
+            "value_in_base": wallet.balance * rate
         })
         
     return {
-        "base_currency": base_currency.upper(),
+        "base_currency": base_curr.code,
         "total_value": total_value,
         "wallets": wallets_info
     }
     
+@log_action("BUY")
 def buy_currency(currency_code: str, amount: float) -> dict:
-    """Покупает указанную валюту за USD."""
-    currency_code = currency_code.upper()
-    if currency_code == "USD":
+    curr = get_currency(currency_code)
+    if curr.code == "USD":
         raise ValueError("Нельзя купить USD за USD.")
         
     portfolio = _get_user_portfolio_model()
-    
-    rate, _ = get_exchange_rate(currency_code, "USD")
+    rate, _ = get_exchange_rate(curr.code, "USD")
     cost_in_usd = amount * rate
     
     try:
@@ -222,35 +202,32 @@ def buy_currency(currency_code: str, amount: float) -> dict:
     usd_wallet.withdraw(cost_in_usd) 
     
     try:
-        target_wallet = portfolio.get_wallet(currency_code)
+        target_wallet = portfolio.get_wallet(curr.code)
     except KeyError:
-        portfolio.add_currency(currency_code)
-        target_wallet = portfolio.get_wallet(currency_code)
+        portfolio.add_currency(curr.code)
+        target_wallet = portfolio.get_wallet(curr.code)
         
     target_wallet.deposit(amount)
-    
     _save_user_portfolio_model(portfolio)
     
-    return {
-        "currency": currency_code,
-        "amount": amount,
-        "rate": rate,
-        "cost": cost_in_usd,
-        "new_balance": target_wallet.balance
-    }
+    return {"currency": curr.code, "amount": amount, "rate": rate, "cost": cost_in_usd, "new_balance": target_wallet.balance}
 
+@log_action("SELL")
 def sell_currency(currency_code: str, amount: float) -> dict:
-    """Продает указанную валюту, зачисляя выручку в USD."""
-    currency_code = currency_code.upper()
-    if currency_code == "USD":
+    curr = get_currency(currency_code)
+    if curr.code == "USD":
         raise ValueError("Нельзя продать USD за USD.")
         
     portfolio = _get_user_portfolio_model()
     
-    wallet = portfolio.get_wallet(currency_code)
+    try:
+        wallet = portfolio.get_wallet(curr.code)
+    except KeyError:
+        raise ValueError(f"У вас нет кошелька '{curr.code}'.")
+        
     wallet.withdraw(amount) 
     
-    rate, _ = get_exchange_rate(currency_code, "USD")
+    rate, _ = get_exchange_rate(curr.code, "USD")
     revenue_in_usd = amount * rate
     
     try:
@@ -260,19 +237,12 @@ def sell_currency(currency_code: str, amount: float) -> dict:
         usd_wallet = portfolio.get_wallet("USD")
         
     usd_wallet.deposit(revenue_in_usd)
-    
     _save_user_portfolio_model(portfolio)
     
-    return {
-        "currency": currency_code,
-        "amount": amount,
-        "rate": rate,
-        "revenue": revenue_in_usd,
-        "new_balance": wallet.balance
-    }
+    return {"currency": curr.code, "amount": amount, "rate": rate, "revenue": revenue_in_usd, "new_balance": wallet.balance}
 
+@log_action("ADD_FIAT")
 def add_fiat_usd(amount: float) -> float:
-    """Тестовая функция для зачисления USD-баланса, чтобы было на что торговать."""
     if amount <= 0:
         raise ValueError("Сумма пополнения должна быть больше нуля.")
         
